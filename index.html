@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+  <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+  <meta charset="utf-8">
+  <title>LockSign</title>
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!-- Mobile Specific Metas
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- FONT
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+  <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+  <!-- CSS
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+  <link rel="stylesheet" href="css/normalize.css">
+  <link rel="stylesheet" href="css/skeleton.css">
+
+  <!-- Favicon
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+  <link rel="icon" type="image/png" href="images/favicon.png">
+
+  <style type="text/css">
+      .hide {
+          display: none;
+      }
+  </style>
+
+</head>
+<body>
+
+  <!-- Primary Page Layout
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+  <div class="container">
+    <section>
+      <h2>LockSign</h2>
+      <div class="row">
+        <div id="err_msg" style="color:red"></div>
+        <div id="success_msg"></div>
+      </div>
+      <div class="row">
+        <pre class="noExtension hide" id="noExtension"><code>
+            NOTE: Please install <a target="_blank" href="https://github.com/ChengOrangeJu/WebExtensionWallet">WebExtensionWallet</a>  to use this DApp
+        </code></pre>
+      </div>
+      <div class="row">
+        <!-- The above form looks like this -->
+        <div class="six columns">
+          <div class="row">
+            <h4>How to use this app:</h4>
+            <ul>
+              <li>Deposit some funds into the contract account</li>
+              <li>Specify accounts whose signature is required to spend the funds</li>
+              <li>Specify number of signatures required to spend the funds</li>
+              <li>Take a note of the resulting WalletID</li>
+            </ul>
+          </div>
+          <form>
+            <label for="walletIDGenerated">WalletID</label>
+            <input class="u-full-width" type="text" id="walletIDGenerated">
+            <div class="row">
+              <div class="six columns">
+                <label for="amountInput">Amount</label>
+                <input class="u-full-width" type="number" placeholder="0.01" value="0.01" step="0.01" id="amountInput">
+              </div>
+              <div class="six columns">
+                <label for="thresholdInput">Threshold</label>
+                <input class="u-full-width" type="number" placeholder="2" value="2" id="thresholdInput">
+              </div>
+            </div>
+            <label for="ownersInput">Owners</label>
+            <textarea class="u-full-width" placeholder="n1QCdHF6y8UZgJZaga6iZ9aZ7JzGRUajRbQ, n1HPpoEfuwmNQLr7fx7iSYKcsGUbqN2UEzM" id="ownersInput"></textarea>
+            <button class="button-primary" type="button" id="deposit">Deposit</button>
+          </form>
+        </div>
+        <div class="six columns">
+          <div class="row">
+            <h4>How to spend funds:</h4>
+            <ul>
+              <li>Specify WalletID of the deposit</li>
+              <li>Specify account to which you want to transfer the funds</li>
+              <li>Once required number of signatures is be gathered, funds will be sent</li>
+              <li>You can also check account balance and state</li>
+            </ul>
+          </div>
+          <form>
+            <div class="row">
+              <div class="twelve columns">
+                <label for="walletIDInput">Wallet ID</label>
+                <input class="u-full-width" type="text" placeholder="0001" id="walletIDInput">
+              </div>
+              <div class="twelve columns">
+                <label for="addressInput">Address</label>
+                <input class="u-full-width" type="text" placeholder="n1QCdHF6y8UZgJZaga6iZ9aZ7JzGRUajRbQ" id="addressInput">
+              </div>
+            </div>
+            <button class="button-primary" type="button" id="spend">Spend</button>
+            <button class="button-primary" type="button" id="check">Check</button>
+          </form>
+        </div>
+
+        <!-- Always wrap checkbox and radio inputs in a label and use a <span class="label-body"> inside of it -->
+
+        <!-- Note: The class .u-full-width is just a utility class shorthand for width: 100% -->
+      </div>
+    </section>
+
+<!-- End Document
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+
+  <script src=js/vendor/jquery-3.3.1.min.js></script>
+  <script src=js/vendor/nebPay.js></script>
+
+  <script type="text/javascript">
+
+    var dappAddress = "n1rmdSx93deZeqQosB1yWY7CWP1bVVUPtwj";
+    var NebPay = require("nebpay");
+    var nebPay = new NebPay();
+
+    if (typeof(webExtensionWallet) === "undefined") {
+        $("#noExtension").removeClass("hide");
+    }
+
+    var ID = () => {
+      let array = new Uint32Array(8)
+      window.crypto.getRandomValues(array)
+      let str = ''
+      for (let i = 0; i < array.length; i++) {
+        str += (i < 2 || i > 5 ? '' : '-') + array[i].toString(16).slice(-4)
+      }
+      return str
+    }
+
+    $("#walletIDGenerated").val(ID());
+
+    update_status = (id) => {
+      var to = dappAddress;
+      var method = "status";
+      var args = JSON.stringify([id]);
+      var value = "0";
+      nebPay.simulateCall(to, value, method, args, {listener: (resp) => {
+        var result = JSON.parse(resp.result);
+        var threshold = result.threshold;
+        var counts = Object.keys(result.owners).reduce(
+          (obj, key) => {
+            if (!result.owners[key])
+              return obj;
+            if (result.owners[key] in obj)
+              obj[result.owners[key]]++;
+            else
+              obj[result.owners[key]] = 1;
+            return obj;
+          }, {});
+          var n = Object.keys(result.owners).reduce(
+            (count, key) => {
+              if (counts[key] > count)
+                count = counts[key];
+              return count;
+            }, 0);
+        $("#success_msg").text("Wallet ID: " + id + ", balance: " + result.amount / 1000000000000000000.0 + ", signed " + n + " of " + threshold);
+      }});
+    }
+
+    invoke_method = (id, to, value, method, args) => {
+      nebPay.simulateCall(to, value, method, args, {listener: (resp) => {
+        var err = resp.execute_err;
+        console.log(resp);
+        if (resp.execute_err) {
+          $("#err_msg").text(resp.result);
+          return;
+        }
+        var result = JSON.parse(resp.result);
+        $("#err_msg").text("");
+        nebPay.call(to, value, method, args, {listener: (resp) => {
+          update_status(id);
+        }});
+      }});
+    }
+
+    deposit = () => {
+      var id = $("#walletIDGenerated").val();
+      var to = dappAddress;
+      var value = $("#amountInput").val();
+      var method = "deposit";
+      var owners = $("#ownersInput").val().split(/[\s,]+/);
+      var threshold = $("#thresholdInput").val();
+
+      var args = JSON.stringify([id, owners, threshold]);
+
+      $("#walletIDInput").val(id);
+
+      invoke_method(id, to, value, method, args);
+    }
+
+    spend = () => {
+      var id = $("#walletIDInput").val();
+      var value = "0";
+      var to = dappAddress;
+      var address = $("#addressInput").val();
+      var method = "spend";
+
+      var args = JSON.stringify([id, address]);
+
+      invoke_method(id, to, value, method, args);
+    }
+
+    check = () => {
+      var id = $("#walletIDInput").val();
+      update_status(id);
+    }
+
+    $("#deposit").click(function(){
+      deposit();
+    });
+
+    $("#spend").click(function(){
+      spend();
+    });
+
+    $("#check").click(function(){
+      check();
+    });
+
+  </script>
+</body>
+</html>
